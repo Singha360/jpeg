@@ -110,6 +110,8 @@ struct Header
 	uint height = 0, width = 0;
 	byte numComponents;
 
+	uint restartInterval = 0;
+
 	ColorComponent colorComponents[3];
 
 	bool valid = true;

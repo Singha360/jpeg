@@ -149,6 +149,20 @@ void readQuantizationTable(std::ifstream &inFile, Header *const header)
 	}
 }
 
+void readRestartInterval(std::ifstream &inFile, Header *const header)
+{
+	std::cout << "Reading DRI Marker\n";
+	uint length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
+
+	header->restartInterval = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
+
+	if (length - 4 != 0)
+	{
+		std::cout << "Error - DRI invalid\n";
+		header->valid = false;
+	}
+}
+
 void readAPPN(std::ifstream &inFile, Header *const header)
 {
 	std::cout << "Reading APPN Marker\n";
@@ -215,12 +229,16 @@ Header *readJPG(const std::string &filename)
 		{
 			header->frameType = SOF0;
 			readStartOfFrame(inFile, header);
-			break;
 		}
 
 		if (current == DQT)
 		{
 			readQuantizationTable(inFile, header);
+		}
+		else if (current == DRI)
+		{
+			readRestartInterval(inFile, header);
+			break;
 		}
 		if (current.to_ulong() >= APP0.to_ulong() && current.to_ulong() <= APP15.to_ulong())
 		{
@@ -266,6 +284,8 @@ void printHeader(const Header *const header)
 		std::cout << "Vertical Sampling Factor: " << header->colorComponents[i].verticalSamplingFactor.to_ulong() << "\n";
 		std::cout << "Quantization Table ID: " << header->colorComponents[i].quantizationTableID.to_ulong() << "\n";
 	}
+	std::cout << "DRI============\n";
+	std::cout << "Restart Interval: " << header->restartInterval << "\n";
 }
 
 int main(int argc, char **argv)
@@ -296,6 +316,5 @@ int main(int argc, char **argv)
 
 		delete header;
 	}
-	std::cout << "\nWritten by Digit\n";
 	return 0;
 }
