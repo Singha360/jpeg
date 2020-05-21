@@ -99,9 +99,9 @@ void readQuantizationTable(std::ifstream &inFile, Header *const header)
 
 	/* 
 	The reason why we are using a signed int is so that the while condition (length > 0) doesn't break. An unsigned int
-	will always be greater than 0 so we will be stuck in an infinte while loop.
+	will always be greater than 0, therefore an infinte while loop.
 	 */
-	int length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian. Convert it to little endian.
+	int length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
 	length -= 2;
 
 	while (length > 0) //Using while here instead of a for loop. This is because the DQT marker could hold more than one Quantization Table, in which case, the length can vary in size.
@@ -152,7 +152,7 @@ void readQuantizationTable(std::ifstream &inFile, Header *const header)
 void readAPPN(std::ifstream &inFile, Header *const header)
 {
 	std::cout << "Reading APPN Marker\n";
-	uint length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian. Convert it to little endian.
+	uint length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
 
 	for (uint i = 0; i < length - 2; ++i)
 	{
