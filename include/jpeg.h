@@ -109,6 +109,7 @@ struct Header
 	byte frameType = 0;
 	uint height = 0, width = 0;
 	byte numComponents;
+	bool zeroBased = false;
 
 	uint restartInterval = 0;
 

@@ -47,6 +47,14 @@ void readStartOfFrame(std::ifstream &inFile, Header *const header)
 	for (uint i = 0; i < header->numComponents.to_ulong(); ++i)
 	{
 		byte componentID = inFile.get();
+		if (componentID == 0)
+		{
+			header->zeroBased = true;
+		}
+		if (header->zeroBased)
+		{
+			componentID = componentID.to_ulong() + 1;
+		}
 		if (componentID.to_ulong() == 4 || componentID.to_ulong() == 5)
 		{
 			std::cout << "Error - YIQ color mode not supported\n";
@@ -70,12 +78,14 @@ void readStartOfFrame(std::ifstream &inFile, Header *const header)
 		byte SamplingFactor = inFile.get();
 		component->horizontalSamplingFactor = SamplingFactor.to_ulong() >> 4; //First four bits has the horizontal sampling factor.
 		component->verticalSamplingFactor = SamplingFactor.to_ulong() & 0x0F; //Last four bits has the vertical sampling factor.
-		if (component->horizontalSamplingFactor != 1 || component->verticalSamplingFactor != 1)
-		{
-			std::cout << "Error - Sampling factors not supported\n";
-			header->valid = false;
-			return;
-		}
+		// if (component->horizontalSamplingFactor.to_ulong() != 1 || component->verticalSamplingFactor.to_ulong() != 1)
+		// {
+		// 	std::cout << "Error - Sampling factors not supported\n";
+		// 	std::cout << "Horizontal Sampling Factor: " << component->horizontalSamplingFactor.to_ulong() << "\n";
+		// 	std::cout << "Vertical Sampling Facotr: " << component->verticalSamplingFactor.to_ulong() << "\n";
+		// 	header->valid = false;
+		// 	return;
+		// }
 
 		component->quantizationTableID = inFile.get();
 		if (component->quantizationTableID.to_ulong() > 3)
@@ -229,17 +239,17 @@ Header *readJPG(const std::string &filename)
 		{
 			header->frameType = SOF0;
 			readStartOfFrame(inFile, header);
+			break;
 		}
 
 		if (current == DQT)
 		{
 			readQuantizationTable(inFile, header);
 		}
-		else if (current == DRI)
-		{
-			readRestartInterval(inFile, header);
-			break;
-		}
+		// else if (current == DRI)
+		// {
+		// 	readRestartInterval(inFile, header);
+		// }
 		if (current.to_ulong() >= APP0.to_ulong() && current.to_ulong() <= APP15.to_ulong())
 		{
 			readAPPN(inFile, header);

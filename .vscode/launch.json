@@ -8,7 +8,7 @@
 			// Resolved by CMake Tools:
 			"program": "${command:cmake.launchTargetPath}",
 			"args": [
-				"./samples/encImg2.jpg"
+				"./samples/243919.jpg"
 			],
 			"stopAtEntry": false,
 			"cwd": "${workspaceFolder}",
