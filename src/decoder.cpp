@@ -159,6 +159,64 @@ void readQuantizationTable(std::ifstream &inFile, Header *const header)
 	}
 }
 
+void readHuffmanTable(std::ifstream &inFile, Header *const header)
+{
+	std::cout << "Reading DHT Marker\n";
+	int length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
+	length -= 2;
+
+	while (length > 0)
+	{
+		byte tableInfo = inFile.get();
+		byte tableID = tableInfo.to_ulong() & 0x0F;
+		bool ACTable = tableInfo.to_ulong() >> 4;
+
+		if (tableID.to_ulong() > 3)
+		{
+			std::cout << "Error - Invalid Huffman table ID: " << tableID.to_ulong() << "\n";
+			header->valid = false;
+			return;
+		}
+
+		HuffmanTable *hTable;
+		if (ACTable)
+		{
+			hTable = &header->huffmanACTables[tableID.to_ulong()];
+		}
+		else
+		{
+			hTable = &header->huffmanDCTables[tableID.to_ulong()];
+		}
+		hTable->set = true;
+
+		hTable->offsets[0] = 0;
+		uint allSymbols = 0;
+		for (uint i = 1; i <= 16; ++i)
+		{
+			allSymbols += inFile.get();
+			hTable->offsets[i] = allSymbols;
+		}
+		if (allSymbols > 162)
+		{
+			std::cout << "Error - Too many symbols in Huffman table\n";
+			header->valid = false;
+			return;
+		}
+
+		for (uint i = 0; i < allSymbols; ++i)
+		{
+			hTable->symbols[i] = inFile.get();
+		}
+
+		length -= 17 + allSymbols;
+	}
+	if (length != 0)
+	{
+		std::cout << "Error - DHT invalid\n";
+		header->valid = false;
+	}
+}
+
 void readRestartInterval(std::ifstream &inFile, Header *const header)
 {
 	std::cout << "Reading DRI Marker\n";
@@ -222,12 +280,6 @@ Header *readJPG(const std::string &filename)
 			inFile.close();
 			return header;
 		}
-		while (last != 0xFF && current != 0xDB)
-		{
-			last = inFile.get();
-			current = inFile.get();
-		}
-
 		if (last != 0xFF)
 		{
 			std::cout << "Error - Expected a marker\n";
@@ -239,18 +291,24 @@ Header *readJPG(const std::string &filename)
 		{
 			header->frameType = SOF0;
 			readStartOfFrame(inFile, header);
-			break;
 		}
-
-		if (current == DQT)
+		else if (current == DQT)
 		{
 			readQuantizationTable(inFile, header);
 		}
-		// else if (current == DRI)
-		// {
-		// 	readRestartInterval(inFile, header);
-		// }
-		if (current.to_ulong() >= APP0.to_ulong() && current.to_ulong() <= APP15.to_ulong())
+		else if (current == DHT)
+		{
+			readHuffmanTable(inFile, header);
+		}
+		else if (current == SOS)
+		{
+			break;
+		}
+		else if (current == DRI)
+		{
+			readRestartInterval(inFile, header);
+		}
+		else if (current.to_ulong() >= APP0.to_ulong() && current.to_ulong() <= APP15.to_ulong())
 		{
 			readAPPN(inFile, header);
 		}
@@ -294,6 +352,45 @@ void printHeader(const Header *const header)
 		std::cout << "Vertical Sampling Factor: " << header->colorComponents[i].verticalSamplingFactor.to_ulong() << "\n";
 		std::cout << "Quantization Table ID: " << header->colorComponents[i].quantizationTableID.to_ulong() << "\n";
 	}
+	std::cout << "DHT============\n";
+	std::cout << "DC tables:\n";
+	for (uint i = 0; i < 4; i++)
+	{
+		if (header->huffmanDCTables[i].set)
+		{
+			std::cout << "Table ID: " << i << "\n";
+			std::cout << "Symbols:\n";
+			for (uint j = 0; j < 16; ++j)
+			{
+				std::cout << (j + 1) << ": ";
+				for (uint k = header->huffmanDCTables[i].offsets[j].to_ulong(); k < header->huffmanDCTables[i].offsets[j + 1].to_ulong(); ++k)
+				{
+					std::cout << std::hex << header->huffmanDCTables[i].symbols[k].to_ulong() << std::dec << " ";
+				}
+				std::cout << "\n";
+			}
+		}
+	}
+
+	std::cout << "AC tables:\n";
+	for (uint i = 0; i < 4; i++)
+	{
+		if (header->huffmanACTables[i].set)
+		{
+			std::cout << "Table ID: " << i << "\n";
+			std::cout << "Symbols:\n";
+			for (uint j = 0; j < 16; ++j)
+			{
+				std::cout << (j + 1) << ": ";
+				for (uint k = header->huffmanACTables[i].offsets[j].to_ulong(); k < header->huffmanACTables[i].offsets[j + 1].to_ulong(); ++k)
+				{
+					std::cout << std::hex << header->huffmanACTables[i].symbols[k].to_ulong() << std::dec << " ";
+				}
+				std::cout << "\n";
+			}
+		}
+	}
+
 	std::cout << "DRI============\n";
 	std::cout << "Restart Interval: " << header->restartInterval << "\n";
 }

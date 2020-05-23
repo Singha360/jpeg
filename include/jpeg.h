@@ -94,6 +94,13 @@ struct QuantizationTable
 	bool set = false;
 };
 
+struct HuffmanTable
+{
+	byte offsets[17] = {0};
+	byte symbols[162] = {0};
+	bool set = false;
+};
+
 struct ColorComponent
 {
 	byte horizontalSamplingFactor = 1;
@@ -105,6 +112,9 @@ struct ColorComponent
 struct Header
 {
 	QuantizationTable quantizationTables[4];
+
+	HuffmanTable huffmanDCTables[4];
+	HuffmanTable huffmanACTables[4];
 
 	byte frameType = 0;
 	uint height = 0, width = 0;
