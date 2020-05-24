@@ -1,5 +1,6 @@
 #pragma once
 #include "type.h"
+#include <vector>
 
 // Start of Frame markers, non-differential, Huffman coding
 const byte SOF0 = 0xC0; // Baseline DCT
@@ -106,6 +107,8 @@ struct ColorComponent
 	byte horizontalSamplingFactor = 1;
 	byte verticalSamplingFactor = 1;
 	byte quantizationTableID = 0;
+	byte huffmanDCTableID = 0;
+	byte huffmanACTableID = 0;
 	bool used = false;
 };
 
@@ -121,9 +124,16 @@ struct Header
 	byte numComponents;
 	bool zeroBased = false;
 
+	byte startOfSelection = 0;
+	byte endOfSelection = 63;
+	byte successiveApproximationHigh = 0;
+	byte successiveApproximationLow = 0;
+
 	uint restartInterval = 0;
 
 	ColorComponent colorComponents[3];
+
+	std::vector<byte> huffmanData;
 
 	bool valid = true;
 };

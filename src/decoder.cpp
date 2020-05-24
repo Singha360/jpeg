@@ -217,6 +217,89 @@ void readHuffmanTable(std::ifstream &inFile, Header *const header)
 	}
 }
 
+void readStartOfScan(std::ifstream &inFile, Header *const header)
+{
+	std::cout << "Reading SOS Marker\n";
+	if (header->numComponents == 0)
+	{
+		std::cout << "Error - SOS detected before SOF\n";
+		header->valid = false;
+		return;
+	}
+
+	uint length = (inFile.get() << 8) + inFile.get();
+
+	for (uint i = 0; i < header->numComponents.to_ulong(); ++i)
+	{
+		header->colorComponents[i].used = false;
+	}
+
+	byte numComponents = inFile.get();
+	for (uint i = 0; i < numComponents.to_ulong(); ++i)
+	{
+		byte componentID = inFile.get();
+		if (header->zeroBased)
+		{
+			componentID = componentID.to_ulong() + 1;
+		}
+		if (componentID.to_ulong() > header->numComponents.to_ulong())
+		{
+			std::cout << "Error - Invalid color compoentID: " << componentID.to_ulong() << "\n";
+			header->valid = false;
+			return;
+		}
+		ColorComponent *component = &header->colorComponents[componentID.to_ulong() - 1];
+		if (component->used)
+		{
+			std::cout << "Error - Duplicate color component ID: " << componentID.to_ulong() << "\n";
+			header->valid = false;
+			return;
+		}
+		component->used = true;
+
+		byte huffmanTableIDs = inFile.get();
+		component->huffmanDCTableID = huffmanTableIDs.to_ulong() >> 4;
+		component->huffmanACTableID = huffmanTableIDs.to_ulong() & 0x0F;
+		if (component->huffmanDCTableID.to_ulong() > 3)
+		{
+			std::cout << "Error - Huffman DC rable ID: " << component->huffmanDCTableID.to_ulong() << "\n";
+			header->valid = false;
+			return;
+		}
+		if (component->huffmanACTableID.to_ulong() > 3)
+		{
+			std::cout << "Error - Huffman AC rable ID: " << component->huffmanACTableID.to_ulong() << "\n";
+			header->valid = false;
+			return;
+		}
+	}
+	header->startOfSelection = inFile.get();
+	header->endOfSelection = inFile.get();
+	byte successiveApproximation = inFile.get();
+	header->successiveApproximationHigh = successiveApproximation.to_ulong() >> 4;
+	header->successiveApproximationLow = successiveApproximation.to_ulong() & 0x0F;
+
+	//Baseline JPEGs don't use spectral selection or successive approximation
+	if (header->startOfSelection.to_ulong() != 0 || header->endOfSelection.to_ulong() != 63)
+	{
+		std::cout << "Error - Invalid spectral selection\n";
+		header->valid = false;
+		return;
+	}
+	if (header->successiveApproximationHigh.to_ulong() != 0 || header->successiveApproximationLow.to_ulong() != 0)
+	{
+		std::cout << "Error - Invalid successive approximation\n";
+		header->valid = false;
+		return;
+	}
+
+	if (length - 6 - (2 * numComponents.to_ulong()) != 0)
+	{
+		std::cout << "Error - SOS invalid\n";
+		header->valid = false;
+	}
+}
+
 void readRestartInterval(std::ifstream &inFile, Header *const header)
 {
 	std::cout << "Reading DRI Marker\n";
@@ -234,6 +317,17 @@ void readRestartInterval(std::ifstream &inFile, Header *const header)
 void readAPPN(std::ifstream &inFile, Header *const header)
 {
 	std::cout << "Reading APPN Marker\n";
+	uint length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
+
+	for (uint i = 0; i < length - 2; ++i)
+	{
+		inFile.get();
+	}
+}
+
+void readComment(std::ifstream &inFile, Header *const header)
+{
+	std::cout << "Reading COM Marker\n";
 	uint length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
 
 	for (uint i = 0; i < length - 2; ++i)
@@ -302,6 +396,7 @@ Header *readJPG(const std::string &filename)
 		}
 		else if (current == SOS)
 		{
+			readStartOfScan(inFile, header);
 			break;
 		}
 		else if (current == DRI)
@@ -312,10 +407,168 @@ Header *readJPG(const std::string &filename)
 		{
 			readAPPN(inFile, header);
 		}
+		else if (current == COM)
+		{
+			readComment(inFile, header);
+		}
+		// Unused markers that can be skipped
+		else if (current.to_ulong() >= JPG0.to_ulong() && current.to_ulong() <= JPG13.to_ulong() ||
+				 current == DNL ||
+				 current == DHP ||
+				 current == EXP)
+		{
+			readComment(inFile, header);
+		}
+		else if (current == TEM)
+		{
+			// TEM has no size
+		}
+		// Any number of 0xFF in a  row is allowed and should be ignored
+		else if (current == 0xFF)
+		{
+			current == inFile.get();
+			continue;
+		}
+		else if (current == SOI)
+		{
+			std::cout << "Error - Embedded JPGs not supported\n";
+			header->valid = false;
+			inFile.close();
+			return header;
+		}
+		else if (current == EOI)
+		{
+			std::cout << "Error - EOI detected before SOS\n";
+			header->valid = false;
+			inFile.close();
+			return header;
+		}
+		else if (current == DAC)
+		{
+			std::cout << "Error - Arithmetic Coding mode not supported\n";
+			header->valid = false;
+			inFile.close();
+			return header;
+		}
+		else if (current.to_ulong() >= SOF0.to_ulong() && current.to_ulong() <= SOF15.to_ulong())
+		{
+			std::cout << "Error - SOF marker not supported: 0x" << std::hex << current.to_ulong() << std::dec << "\n";
+			header->valid = false;
+			inFile.close();
+			return header;
+		}
+		else if (current.to_ulong() >= RST0.to_ulong() && current.to_ulong() <= RST7.to_ulong())
+		{
+			std::cout << "Error - RSTN detected before SOS\n";
+			header->valid = false;
+			inFile.close();
+			return header;
+		}
+		else
+		{
+			std::cout << "Error - Unknown marker: 0x" << std::hex << current.to_ulong() << std::dec << "\n";
+			header->valid = false;
+			inFile.close();
+			return header;
+		}
 
 		last = inFile.get();
 		current = inFile.get();
 	}
+	//After SOS
+	if (header->valid)
+	{
+		current = inFile.get();
+		//Read compressed image data
+		while (true)
+		{
+			if (!inFile)
+			{
+				std::cout << "Error - File ended prematurely\n";
+				header->valid = false;
+				inFile.close();
+				return header;
+			}
+
+			last = current;
+			current = inFile.get();
+			// If marker is found
+			if (last == 0xFF)
+			{
+				// End of Image
+				if (current == EOI)
+				{
+					break;
+				}
+				// 0xFF 0x00 means put a literal 0xFF in image data and ignore 0x00
+				else if (current == 0x00)
+				{
+					header->huffmanData.push_back(last);
+					current = inFile.get();
+				}
+				// If current happens to be a restart marker
+				else if (current.to_ulong() >= RST0.to_ulong() && current.to_ulong() <= RST7.to_ulong())
+				{
+					//Overwrite marker with next byte
+					current = inFile.get();
+				}
+				// Ignore multiple 0xFF's in a row
+				else if (current == 0xFF)
+				{
+					//Do nothing
+					continue;
+				}
+				else
+				{
+					std::cout << "Error - Invalid marker during compressed data scan: 0x" << std::hex << current.to_ulong() << std::dec << "|n";
+					header->valid = false;
+					inFile.close();
+					return header;
+				}
+			}
+			else
+			{
+				header->huffmanData.push_back(last);
+			}
+		}
+	}
+
+	// Validate header info
+	if (header->numComponents.to_ulong() != 1 && header->numComponents.to_ulong() != 3)
+	{
+		std::cout << "Error - " << header->numComponents.to_ulong() << "color components given (1 or 3 required)"
+				  << "\n";
+		header->valid = false;
+		inFile.close();
+		return header;
+	}
+
+	for (uint i = 0; i < header->numComponents.to_ulong(); ++i)
+	{
+		if (header->quantizationTables[header->colorComponents[i].quantizationTableID.to_ulong()].set == false)
+		{
+			std::cout << "Error - Color component using uninitialized quantization table\n";
+			header->valid = false;
+			inFile.close();
+			return header;
+		}
+		if (header->huffmanDCTables[header->colorComponents[i].huffmanDCTableID.to_ulong()].set == false)
+		{
+			std::cout << "Error - Color component using uninitialized Huffman DC table\n";
+			header->valid = false;
+			inFile.close();
+			return header;
+		}
+		if (header->huffmanACTables[header->colorComponents[i].huffmanACTableID.to_ulong()].set == false)
+		{
+			std::cout << "Error - Color component using uninitialized Huffman AC table\n";
+			header->valid = false;
+			inFile.close();
+			return header;
+		}
+	}
+
+	inFile.close();
 	return header;
 }
 
@@ -390,7 +643,19 @@ void printHeader(const Header *const header)
 			}
 		}
 	}
-
+	std::cout << "SOS============\n";
+	std::cout << "Start of Selection: " << header->startOfSelection.to_ulong() << "\n";
+	std::cout << "End of Selection: " << header->endOfSelection.to_ulong() << "\n";
+	std::cout << "Successive Approximation High: " << header->successiveApproximationHigh.to_ulong() << "\n";
+	std::cout << "Successive Approximation Low: " << header->successiveApproximationLow.to_ulong() << "\n";
+	std::cout << "Color components:\n";
+	for (uint i = 0; i < header->numComponents.to_ulong(); ++i)
+	{
+		std::cout << "Component ID: " << (i + 1) << "\n";
+		std::cout << "Huffman DC Table ID: " << header->colorComponents[i].huffmanDCTableID.to_ulong() << "\n";
+		std::cout << "Huffman AC Table ID: " << header->colorComponents[i].huffmanACTableID.to_ulong() << "\n";
+	}
+	std::cout << "Size of Huffman Data: " << header->huffmanData.size() << " Bytes\n";
 	std::cout << "DRI============\n";
 	std::cout << "Restart Interval: " << header->restartInterval << "\n";
 }
