@@ -660,6 +660,74 @@ void printHeader(const Header *const header)
 	std::cout << "Restart Interval: " << header->restartInterval << "\n";
 }
 
+MCU *blackbox(const Header *const header)
+{
+}
+
+void putInt(std::ofstream &outFile, const uint v) //Helper function to write a 4-byte integer in little-endian
+{
+	outFile.put((v >> 0) & 0xFF);
+	outFile.put((v >> 0) & 0xFF);
+	outFile.put((v >> 0) & 0xFF);
+	outFile.put((v >> 0) & 0xFF);
+}
+
+void putShort(std::ofstream &outFile, const uint v) //Helper function to write a 4-byte integer in little-endian
+{
+	outFile.put((v >> 0) & 0xFF);
+	outFile.put((v >> 8) & 0xFF);
+}
+
+void writeBMP(const Header *const header, const MCU *const mcus, const std::string &filename) //This function writes all the pixels in the bitmap file.
+{
+	//Open file
+	std::ofstream outFile = std::ofstream(filename, std::ios::out | std::ios::binary);
+	if (!outFile.is_open())
+	{
+		std::cout << "Error - Failed opening output file\n";
+		return;
+	}
+
+	const uint mcuHeight = (header->height + 7) / 8;
+	const uint mcuWidth = (header->height + 7) / 8;
+	const uint paddingSize = header->width % 4;
+	const uint size = 14 + 12 + header->height * header->width + paddingSize * header->height;
+
+	outFile.put('B');
+	outFile.put('M');
+
+	putInt(outFile, size);
+	putInt(outFile, 0);
+	putInt(outFile, 0x1A);
+	putInt(outFile, 12);
+	putShort(outFile, header->width);
+	putShort(outFile, header->height);
+	putShort(outFile, 1);
+	putShort(outFile, 24);
+
+	for (uint y = header->height - 1; y < header->height; --y) //Loop through the Y coordinate
+	{
+		const uint mcuRow = y / 8;
+		const uint pixelRow = y % 8;
+		for (uint x = 0; x < header->width; ++x) //Loop through the X coordinate
+		{
+			const uint mcuColumn = x / 8;
+			const uint pixelColumn = x % 8;
+			const uint mcuIndex = mcuRow * mcuWidth + mcuColumn;
+			const uint pixelIndex = pixelRow * 8 + pixelColumn;
+			outFile.put(mcus[mcuIndex].b[pixelIndex]);
+			outFile.put(mcus[mcuIndex].g[pixelIndex]);
+			outFile.put(mcus[mcuIndex].r[pixelIndex]);
+		}
+		for (uint i = 0; i < paddingSize; ++i)
+		{
+			outFile.put(0);
+		}
+	}
+
+	outFile.close();
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 2)
@@ -685,7 +753,19 @@ int main(int argc, char **argv)
 		printHeader(header);
 
 		//Decode Huffman data.
+		MCU *mcus = blackbox(header);
+		if (mcus == nullptr)
+		{
+			delete header;
+			continue;
+		}
 
+		//Write BMP file
+		const std::size_t pos = filename.find_first_of('.');
+		const std::string outFilename = (pos == std::string::npos) ? (filename + ".bmp") : (filename.substr(0, pos) + ".bmp");
+		writeBMP(header, mcus, outFilename);
+
+		delete[] mcus;
 		delete header;
 	}
 	return 0;

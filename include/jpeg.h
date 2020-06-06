@@ -138,6 +138,23 @@ struct Header
 	bool valid = true;
 };
 
+struct MCU
+{
+	//Union are for representing the YCbCr component but also RGB for the X & Y coordinate of the image.
+	union {
+		int y[64] = {0};
+		int r[64];
+	};
+	union {
+		int cb[64] = {0};
+		int g[64];
+	};
+	union {
+		int cr[64] = {0};
+		int b[64];
+	};
+};
+
 const uint zigZagMap[] = {
 	0, 1, 8, 16, 9, 2, 3, 10,
 	17, 24, 32, 25, 18, 11, 4, 5,
