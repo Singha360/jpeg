@@ -1,5 +1,5 @@
-#include <iostream>
 #include <fstream>
+#include <iostream>
 
 #include "jpeg.h"
 
@@ -63,11 +63,13 @@ void readStartOfFrame(std::ifstream &inFile, Header *const header)
 		}
 		if (componentID.to_ulong() == 0 || componentID.to_ulong() > 3)
 		{
-			std::cout << "Error - Invalid component ID: " << componentID.to_ulong() << "\n";
+			std::cout << "Error - Invalid component ID: " << componentID.to_ulong()
+					  << "\n";
 			header->valid = false;
 			return;
 		}
-		ColorComponent *component = &header->colorComponents[componentID.to_ulong() - 1];
+		ColorComponent *component =
+			&header->colorComponents[componentID.to_ulong() - 1];
 		if (component->used)
 		{
 			std::cout << "Error - Duplicate color component ID\n";
@@ -76,15 +78,21 @@ void readStartOfFrame(std::ifstream &inFile, Header *const header)
 		}
 		component->used = true;
 		byte SamplingFactor = inFile.get();
-		component->horizontalSamplingFactor = SamplingFactor.to_ulong() >> 4; //First four bits has the horizontal sampling factor.
-		component->verticalSamplingFactor = SamplingFactor.to_ulong() & 0x0F; //Last four bits has the vertical sampling factor.
-		// if (component->horizontalSamplingFactor.to_ulong() != 1 || component->verticalSamplingFactor.to_ulong() != 1)
+		component->horizontalSamplingFactor =
+			SamplingFactor.to_ulong() >>
+			4; // First four bits has the horizontal sampling factor.
+		component->verticalSamplingFactor =
+			SamplingFactor.to_ulong() &
+			0x0F; // Last four bits has the vertical sampling factor.
+		// if (component->horizontalSamplingFactor.to_ulong() != 1 ||
+		// component->verticalSamplingFactor.to_ulong() != 1)
 		// {
 		// 	std::cout << "Error - Sampling factors not supported\n";
-		// 	std::cout << "Horizontal Sampling Factor: " << component->horizontalSamplingFactor.to_ulong() << "\n";
-		// 	std::cout << "Vertical Sampling Facotr: " << component->verticalSamplingFactor.to_ulong() << "\n";
-		// 	header->valid = false;
-		// 	return;
+		// 	std::cout << "Horizontal Sampling Factor: " <<
+		// component->horizontalSamplingFactor.to_ulong() << "\n"; 	std::cout <<
+		// "Vertical Sampling Facotr: " <<
+		// component->verticalSamplingFactor.to_ulong() << "\n"; 	header->valid =
+		// false; 	return;
 		// }
 
 		component->quantizationTableID = inFile.get();
@@ -107,49 +115,60 @@ void readQuantizationTable(std::ifstream &inFile, Header *const header)
 {
 	std::cout << "Reading DQT marker\n";
 
-	/* 
-	The reason why we are using a signed int is so that the while condition (length > 0) doesn't break. An unsigned int
-	will always be greater than 0, therefore an infinte while loop.
-	 */
-	int length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
+	/*
+  The reason why we are using a signed int is so that the while condition
+  (length > 0) doesn't break. An unsigned int will always be greater than 0,
+  therefore an infinte while loop.
+   */
+	int length = (inFile.get() << 8) +
+				 inFile.get(); // Left bit shift since JPEG is read in big endian.
 	length -= 2;
 
-	while (length > 0) //Using while here instead of a for loop. This is because the DQT marker could hold more than one Quantization Table, in which case, the length can vary in size.
+	while (length > 0) // Using while here instead of a for loop. This is because
+					   // the DQT marker could hold more than one Quantization
+					   // Table, in which case, the length can vary in size.
 	{
 		byte tableInfo = inFile.get();
 		length -= 1;
-		byte tableID = tableInfo.to_ulong() & 0x0F; //Read the last four bits of the tableInfo byte. This will hold a value between 0-3.
+		byte tableID =
+			tableInfo.to_ulong() & 0x0F; // Read the last four bits of the tableInfo
+										 // byte. This will hold a value between 0-3.
 
 		if (tableID.to_ullong() > 3)
 		{
-			std::cout << "Error - Invalid quantization table ID: " << (uint)tableID.to_ulong() << "\n";
+			std::cout << "Error - Invalid quantization table ID: "
+					  << (uint)tableID.to_ulong() << "\n";
 			header->valid = false;
 			return;
 		}
 		header->quantizationTables[tableID.to_ullong()].set = true;
 
-		if (tableInfo.to_ulong() >> 4 != 0) //Bit shift so that we are only reading the first four bits.
+		if (tableInfo.to_ulong() >> 4 !=
+			0) // Bit shift so that we are only reading the first four bits.
 		{
-			//This is to handle Quantization Table with 16 bit values.
+			// This is to handle Quantization Table with 16 bit values.
 			for (uint i = 0; i < 64; ++i)
 			{
-				header->quantizationTables[tableID.to_ulong()].table[zigZagMap[i]] = (inFile.get() << 8) + inFile.get();
+				header->quantizationTables[tableID.to_ulong()].table[zigZagMap[i]] =
+					(inFile.get() << 8) + inFile.get();
 			}
 			length -= 128;
 		}
 		else
 		{
-			//This for 8 bit values.
+			// This for 8 bit values.
 			for (uint i = 0; i < 64; ++i)
 			{
-				header->quantizationTables[tableID.to_ulong()].table[zigZagMap[i]] = inFile.get();
+				header->quantizationTables[tableID.to_ulong()].table[zigZagMap[i]] =
+					inFile.get();
 			}
 			length -= 64;
 		}
-		/* 
-		The length -= XX is so that it resolves to either a value of 0 or lower which will make it break out of the loop.
-		If it's lower than there was an issue.
-		 */
+		/*
+    The length -= XX is so that it resolves to either a value of 0 or lower
+    which will make it break out of the loop. If it's lower than there was an
+    issue.
+     */
 	}
 
 	if (length != 0)
@@ -162,7 +181,8 @@ void readQuantizationTable(std::ifstream &inFile, Header *const header)
 void readHuffmanTable(std::ifstream &inFile, Header *const header)
 {
 	std::cout << "Reading DHT Marker\n";
-	int length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
+	int length = (inFile.get() << 8) +
+				 inFile.get(); // Left bit shift since JPEG is read in big endian.
 	length -= 2;
 
 	while (length > 0)
@@ -173,7 +193,8 @@ void readHuffmanTable(std::ifstream &inFile, Header *const header)
 
 		if (tableID.to_ulong() > 3)
 		{
-			std::cout << "Error - Invalid Huffman table ID: " << tableID.to_ulong() << "\n";
+			std::cout << "Error - Invalid Huffman table ID: " << tableID.to_ulong()
+					  << "\n";
 			header->valid = false;
 			return;
 		}
@@ -244,14 +265,17 @@ void readStartOfScan(std::ifstream &inFile, Header *const header)
 		}
 		if (componentID.to_ulong() > header->numComponents.to_ulong())
 		{
-			std::cout << "Error - Invalid color compoentID: " << componentID.to_ulong() << "\n";
+			std::cout << "Error - Invalid color compoentID: "
+					  << componentID.to_ulong() << "\n";
 			header->valid = false;
 			return;
 		}
-		ColorComponent *component = &header->colorComponents[componentID.to_ulong() - 1];
+		ColorComponent *component =
+			&header->colorComponents[componentID.to_ulong() - 1];
 		if (component->used)
 		{
-			std::cout << "Error - Duplicate color component ID: " << componentID.to_ulong() << "\n";
+			std::cout << "Error - Duplicate color component ID: "
+					  << componentID.to_ulong() << "\n";
 			header->valid = false;
 			return;
 		}
@@ -262,13 +286,15 @@ void readStartOfScan(std::ifstream &inFile, Header *const header)
 		component->huffmanACTableID = huffmanTableIDs.to_ulong() & 0x0F;
 		if (component->huffmanDCTableID.to_ulong() > 3)
 		{
-			std::cout << "Error - Huffman DC rable ID: " << component->huffmanDCTableID.to_ulong() << "\n";
+			std::cout << "Error - Huffman DC rable ID: "
+					  << component->huffmanDCTableID.to_ulong() << "\n";
 			header->valid = false;
 			return;
 		}
 		if (component->huffmanACTableID.to_ulong() > 3)
 		{
-			std::cout << "Error - Huffman AC rable ID: " << component->huffmanACTableID.to_ulong() << "\n";
+			std::cout << "Error - Huffman AC rable ID: "
+					  << component->huffmanACTableID.to_ulong() << "\n";
 			header->valid = false;
 			return;
 		}
@@ -277,16 +303,19 @@ void readStartOfScan(std::ifstream &inFile, Header *const header)
 	header->endOfSelection = inFile.get();
 	byte successiveApproximation = inFile.get();
 	header->successiveApproximationHigh = successiveApproximation.to_ulong() >> 4;
-	header->successiveApproximationLow = successiveApproximation.to_ulong() & 0x0F;
+	header->successiveApproximationLow =
+		successiveApproximation.to_ulong() & 0x0F;
 
-	//Baseline JPEGs don't use spectral selection or successive approximation
-	if (header->startOfSelection.to_ulong() != 0 || header->endOfSelection.to_ulong() != 63)
+	// Baseline JPEGs don't use spectral selection or successive approximation
+	if (header->startOfSelection.to_ulong() != 0 ||
+		header->endOfSelection.to_ulong() != 63)
 	{
 		std::cout << "Error - Invalid spectral selection\n";
 		header->valid = false;
 		return;
 	}
-	if (header->successiveApproximationHigh.to_ulong() != 0 || header->successiveApproximationLow.to_ulong() != 0)
+	if (header->successiveApproximationHigh.to_ulong() != 0 ||
+		header->successiveApproximationLow.to_ulong() != 0)
 	{
 		std::cout << "Error - Invalid successive approximation\n";
 		header->valid = false;
@@ -303,9 +332,13 @@ void readStartOfScan(std::ifstream &inFile, Header *const header)
 void readRestartInterval(std::ifstream &inFile, Header *const header)
 {
 	std::cout << "Reading DRI Marker\n";
-	uint length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
+	uint length =
+		(inFile.get() << 8) +
+		inFile.get(); // Left bit shift since JPEG is read in big endian.
 
-	header->restartInterval = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
+	header->restartInterval =
+		(inFile.get() << 8) +
+		inFile.get(); // Left bit shift since JPEG is read in big endian.
 
 	if (length - 4 != 0)
 	{
@@ -317,7 +350,9 @@ void readRestartInterval(std::ifstream &inFile, Header *const header)
 void readAPPN(std::ifstream &inFile, Header *const header)
 {
 	std::cout << "Reading APPN Marker\n";
-	uint length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
+	uint length =
+		(inFile.get() << 8) +
+		inFile.get(); // Left bit shift since JPEG is read in big endian.
 
 	for (uint i = 0; i < length - 2; ++i)
 	{
@@ -328,7 +363,9 @@ void readAPPN(std::ifstream &inFile, Header *const header)
 void readComment(std::ifstream &inFile, Header *const header)
 {
 	std::cout << "Reading COM Marker\n";
-	uint length = (inFile.get() << 8) + inFile.get(); //Left bit shift since JPEG is read in big endian.
+	uint length =
+		(inFile.get() << 8) +
+		inFile.get(); // Left bit shift since JPEG is read in big endian.
 
 	for (uint i = 0; i < length - 2; ++i)
 	{
@@ -338,8 +375,9 @@ void readComment(std::ifstream &inFile, Header *const header)
 
 Header *readJPG(const std::string &filename)
 {
-	//Open file
-	std::ifstream inFile = std::ifstream(filename, std::ios::in | std::ios::binary);
+	// Open file
+	std::ifstream inFile =
+		std::ifstream(filename, std::ios::in | std::ios::binary);
 	if (!inFile.is_open())
 	{
 		std::cout << "Error - Error opening input file\n";
@@ -403,7 +441,8 @@ Header *readJPG(const std::string &filename)
 		{
 			readRestartInterval(inFile, header);
 		}
-		else if (current.to_ulong() >= APP0.to_ulong() && current.to_ulong() <= APP15.to_ulong())
+		else if (current.to_ulong() >= APP0.to_ulong() &&
+				 current.to_ulong() <= APP15.to_ulong())
 		{
 			readAPPN(inFile, header);
 		}
@@ -412,10 +451,9 @@ Header *readJPG(const std::string &filename)
 			readComment(inFile, header);
 		}
 		// Unused markers that can be skipped
-		else if (current.to_ulong() >= JPG0.to_ulong() && current.to_ulong() <= JPG13.to_ulong() ||
-				 current == DNL ||
-				 current == DHP ||
-				 current == EXP)
+		else if (current.to_ulong() >= JPG0.to_ulong() &&
+					 current.to_ulong() <= JPG13.to_ulong() ||
+				 current == DNL || current == DHP || current == EXP)
 		{
 			readComment(inFile, header);
 		}
@@ -450,14 +488,17 @@ Header *readJPG(const std::string &filename)
 			inFile.close();
 			return header;
 		}
-		else if (current.to_ulong() >= SOF0.to_ulong() && current.to_ulong() <= SOF15.to_ulong())
+		else if (current.to_ulong() >= SOF0.to_ulong() &&
+				 current.to_ulong() <= SOF15.to_ulong())
 		{
-			std::cout << "Error - SOF marker not supported: 0x" << std::hex << current.to_ulong() << std::dec << "\n";
+			std::cout << "Error - SOF marker not supported: 0x" << std::hex
+					  << current.to_ulong() << std::dec << "\n";
 			header->valid = false;
 			inFile.close();
 			return header;
 		}
-		else if (current.to_ulong() >= RST0.to_ulong() && current.to_ulong() <= RST7.to_ulong())
+		else if (current.to_ulong() >= RST0.to_ulong() &&
+				 current.to_ulong() <= RST7.to_ulong())
 		{
 			std::cout << "Error - RSTN detected before SOS\n";
 			header->valid = false;
@@ -466,7 +507,8 @@ Header *readJPG(const std::string &filename)
 		}
 		else
 		{
-			std::cout << "Error - Unknown marker: 0x" << std::hex << current.to_ulong() << std::dec << "\n";
+			std::cout << "Error - Unknown marker: 0x" << std::hex
+					  << current.to_ulong() << std::dec << "\n";
 			header->valid = false;
 			inFile.close();
 			return header;
@@ -475,11 +517,11 @@ Header *readJPG(const std::string &filename)
 		last = inFile.get();
 		current = inFile.get();
 	}
-	//After SOS
+	// After SOS
 	if (header->valid)
 	{
 		current = inFile.get();
-		//Read compressed image data
+		// Read compressed image data
 		while (true)
 		{
 			if (!inFile)
@@ -507,20 +549,22 @@ Header *readJPG(const std::string &filename)
 					current = inFile.get();
 				}
 				// If current happens to be a restart marker
-				else if (current.to_ulong() >= RST0.to_ulong() && current.to_ulong() <= RST7.to_ulong())
+				else if (current.to_ulong() >= RST0.to_ulong() &&
+						 current.to_ulong() <= RST7.to_ulong())
 				{
-					//Overwrite marker with next byte
+					// Overwrite marker with next byte
 					current = inFile.get();
 				}
 				// Ignore multiple 0xFF's in a row
 				else if (current == 0xFF)
 				{
-					//Do nothing
+					// Do nothing
 					continue;
 				}
 				else
 				{
-					std::cout << "Error - Invalid marker during compressed data scan: 0x" << std::hex << current.to_ulong() << std::dec << "|n";
+					std::cout << "Error - Invalid marker during compressed data scan: 0x"
+							  << std::hex << current.to_ulong() << std::dec << "|n";
 					header->valid = false;
 					inFile.close();
 					return header;
@@ -534,9 +578,11 @@ Header *readJPG(const std::string &filename)
 	}
 
 	// Validate header info
-	if (header->numComponents.to_ulong() != 1 && header->numComponents.to_ulong() != 3)
+	if (header->numComponents.to_ulong() != 1 &&
+		header->numComponents.to_ulong() != 3)
 	{
-		std::cout << "Error - " << header->numComponents.to_ulong() << "color components given (1 or 3 required)"
+		std::cout << "Error - " << header->numComponents.to_ulong()
+				  << "color components given (1 or 3 required)"
 				  << "\n";
 		header->valid = false;
 		inFile.close();
@@ -545,23 +591,35 @@ Header *readJPG(const std::string &filename)
 
 	for (uint i = 0; i < header->numComponents.to_ulong(); ++i)
 	{
-		if (header->quantizationTables[header->colorComponents[i].quantizationTableID.to_ulong()].set == false)
+		if (header
+				->quantizationTables[header->colorComponents[i]
+										 .quantizationTableID.to_ulong()]
+				.set == false)
 		{
-			std::cout << "Error - Color component using uninitialized quantization table\n";
+			std::cout
+				<< "Error - Color component using uninitialized quantization table\n";
 			header->valid = false;
 			inFile.close();
 			return header;
 		}
-		if (header->huffmanDCTables[header->colorComponents[i].huffmanDCTableID.to_ulong()].set == false)
+		if (header
+				->huffmanDCTables[header->colorComponents[i]
+									  .huffmanDCTableID.to_ulong()]
+				.set == false)
 		{
-			std::cout << "Error - Color component using uninitialized Huffman DC table\n";
+			std::cout
+				<< "Error - Color component using uninitialized Huffman DC table\n";
 			header->valid = false;
 			inFile.close();
 			return header;
 		}
-		if (header->huffmanACTables[header->colorComponents[i].huffmanACTableID.to_ulong()].set == false)
+		if (header
+				->huffmanACTables[header->colorComponents[i]
+									  .huffmanACTableID.to_ulong()]
+				.set == false)
 		{
-			std::cout << "Error - Color component using uninitialized Huffman AC table\n";
+			std::cout
+				<< "Error - Color component using uninitialized Huffman AC table\n";
 			header->valid = false;
 			inFile.close();
 			return header;
@@ -595,15 +653,22 @@ void printHeader(const Header *const header)
 		}
 	}
 	std::cout << "SOF============\n";
-	std::cout << "Frame Type: 0x" << std::hex << header->frameType.to_ulong() << std::dec << "\n";
+	std::cout << "Frame Type: 0x" << std::hex << header->frameType.to_ulong()
+			  << std::dec << "\n";
 	std::cout << "Height: " << header->height << "\n";
 	std::cout << "Width: " << header->width << "\n";
 	for (uint i = 0; i < header->numComponents.to_ulong(); ++i)
 	{
 		std::cout << "Component ID: " << (i + 1) << "\n";
-		std::cout << "Horizontal Sampling Factor: " << header->colorComponents[i].horizontalSamplingFactor.to_ulong() << "\n";
-		std::cout << "Vertical Sampling Factor: " << header->colorComponents[i].verticalSamplingFactor.to_ulong() << "\n";
-		std::cout << "Quantization Table ID: " << header->colorComponents[i].quantizationTableID.to_ulong() << "\n";
+		std::cout << "Horizontal Sampling Factor: "
+				  << header->colorComponents[i].horizontalSamplingFactor.to_ulong()
+				  << "\n";
+		std::cout << "Vertical Sampling Factor: "
+				  << header->colorComponents[i].verticalSamplingFactor.to_ulong()
+				  << "\n";
+		std::cout << "Quantization Table ID: "
+				  << header->colorComponents[i].quantizationTableID.to_ulong()
+				  << "\n";
 	}
 	std::cout << "DHT============\n";
 	std::cout << "DC tables:\n";
@@ -616,9 +681,12 @@ void printHeader(const Header *const header)
 			for (uint j = 0; j < 16; ++j)
 			{
 				std::cout << (j + 1) << ": ";
-				for (uint k = header->huffmanDCTables[i].offsets[j].to_ulong(); k < header->huffmanDCTables[i].offsets[j + 1].to_ulong(); ++k)
+				for (uint k = header->huffmanDCTables[i].offsets[j].to_ulong();
+					 k < header->huffmanDCTables[i].offsets[j + 1].to_ulong(); ++k)
 				{
-					std::cout << std::hex << header->huffmanDCTables[i].symbols[k].to_ulong() << std::dec << " ";
+					std::cout << std::hex
+							  << header->huffmanDCTables[i].symbols[k].to_ulong()
+							  << std::dec << " ";
 				}
 				std::cout << "\n";
 			}
@@ -635,53 +703,68 @@ void printHeader(const Header *const header)
 			for (uint j = 0; j < 16; ++j)
 			{
 				std::cout << (j + 1) << ": ";
-				for (uint k = header->huffmanACTables[i].offsets[j].to_ulong(); k < header->huffmanACTables[i].offsets[j + 1].to_ulong(); ++k)
+				for (uint k = header->huffmanACTables[i].offsets[j].to_ulong();
+					 k < header->huffmanACTables[i].offsets[j + 1].to_ulong(); ++k)
 				{
-					std::cout << std::hex << header->huffmanACTables[i].symbols[k].to_ulong() << std::dec << " ";
+					std::cout << std::hex
+							  << header->huffmanACTables[i].symbols[k].to_ulong()
+							  << std::dec << " ";
 				}
 				std::cout << "\n";
 			}
 		}
 	}
 	std::cout << "SOS============\n";
-	std::cout << "Start of Selection: " << header->startOfSelection.to_ulong() << "\n";
-	std::cout << "End of Selection: " << header->endOfSelection.to_ulong() << "\n";
-	std::cout << "Successive Approximation High: " << header->successiveApproximationHigh.to_ulong() << "\n";
-	std::cout << "Successive Approximation Low: " << header->successiveApproximationLow.to_ulong() << "\n";
+	std::cout << "Start of Selection: " << header->startOfSelection.to_ulong()
+			  << "\n";
+	std::cout << "End of Selection: " << header->endOfSelection.to_ulong()
+			  << "\n";
+	std::cout << "Successive Approximation High: "
+			  << header->successiveApproximationHigh.to_ulong() << "\n";
+	std::cout << "Successive Approximation Low: "
+			  << header->successiveApproximationLow.to_ulong() << "\n";
 	std::cout << "Color components:\n";
 	for (uint i = 0; i < header->numComponents.to_ulong(); ++i)
 	{
 		std::cout << "Component ID: " << (i + 1) << "\n";
-		std::cout << "Huffman DC Table ID: " << header->colorComponents[i].huffmanDCTableID.to_ulong() << "\n";
-		std::cout << "Huffman AC Table ID: " << header->colorComponents[i].huffmanACTableID.to_ulong() << "\n";
+		std::cout << "Huffman DC Table ID: "
+				  << header->colorComponents[i].huffmanDCTableID.to_ulong() << "\n";
+		std::cout << "Huffman AC Table ID: "
+				  << header->colorComponents[i].huffmanACTableID.to_ulong() << "\n";
 	}
-	std::cout << "Size of Huffman Data: " << header->huffmanData.size() << " Bytes\n";
+	std::cout << "Size of Huffman Data: " << header->huffmanData.size()
+			  << " Bytes\n";
 	std::cout << "DRI============\n";
 	std::cout << "Restart Interval: " << header->restartInterval << "\n";
 }
 
-MCU *blackbox(const Header *const header)
+MCU *blackbox(const Header *const header) {}
+
+void putInt(
+	std::ofstream &outFile,
+	const uint v) // Helper function to write a 4-byte integer in little-endian
 {
+	outFile.put((v >> 0) & 0xFF);
+	outFile.put((v >> 0) & 0xFF);
+	outFile.put((v >> 0) & 0xFF);
+	outFile.put((v >> 0) & 0xFF);
 }
 
-void putInt(std::ofstream &outFile, const uint v) //Helper function to write a 4-byte integer in little-endian
-{
-	outFile.put((v >> 0) & 0xFF);
-	outFile.put((v >> 0) & 0xFF);
-	outFile.put((v >> 0) & 0xFF);
-	outFile.put((v >> 0) & 0xFF);
-}
-
-void putShort(std::ofstream &outFile, const uint v) //Helper function to write a 4-byte integer in little-endian
+void putShort(
+	std::ofstream &outFile,
+	const uint v) // Helper function to write a 4-byte integer in little-endian
 {
 	outFile.put((v >> 0) & 0xFF);
 	outFile.put((v >> 8) & 0xFF);
 }
 
-void writeBMP(const Header *const header, const MCU *const mcus, const std::string &filename) //This function writes all the pixels in the bitmap file.
+void writeBMP(const Header *const header, const MCU *const mcus,
+			  const std::string &filename) // This function writes all the
+										   // pixels in the bitmap file.
 {
-	//Open file
-	std::ofstream outFile = std::ofstream(filename, std::ios::out | std::ios::binary);
+	// Open file
+	std::ofstream outFile =
+		std::ofstream(filename, std::ios::out | std::ios::binary);
 	if (!outFile.is_open())
 	{
 		std::cout << "Error - Failed opening output file\n";
@@ -691,7 +774,8 @@ void writeBMP(const Header *const header, const MCU *const mcus, const std::stri
 	const uint mcuHeight = (header->height + 7) / 8;
 	const uint mcuWidth = (header->height + 7) / 8;
 	const uint paddingSize = header->width % 4;
-	const uint size = 14 + 12 + header->height * header->width + paddingSize * header->height;
+	const uint size =
+		14 + 12 + header->height * header->width + paddingSize * header->height;
 
 	outFile.put('B');
 	outFile.put('M');
@@ -705,11 +789,12 @@ void writeBMP(const Header *const header, const MCU *const mcus, const std::stri
 	putShort(outFile, 1);
 	putShort(outFile, 24);
 
-	for (uint y = header->height - 1; y < header->height; --y) //Loop through the Y coordinate
+	for (uint y = header->height - 1; y < header->height;
+		 --y) // Loop through the Y coordinate
 	{
 		const uint mcuRow = y / 8;
 		const uint pixelRow = y % 8;
-		for (uint x = 0; x < header->width; ++x) //Loop through the X coordinate
+		for (uint x = 0; x < header->width; ++x) // Loop through the X coordinate
 		{
 			const uint mcuColumn = x / 8;
 			const uint pixelColumn = x % 8;
@@ -728,7 +813,7 @@ void writeBMP(const Header *const header, const MCU *const mcus, const std::stri
 	outFile.close();
 }
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
 	if (argc < 2)
 	{
@@ -752,7 +837,7 @@ int main(int argc, char **argv)
 
 		printHeader(header);
 
-		//Decode Huffman data.
+		// Decode Huffman data.
 		MCU *mcus = blackbox(header);
 		if (mcus == nullptr)
 		{
@@ -760,9 +845,11 @@ int main(int argc, char **argv)
 			continue;
 		}
 
-		//Write BMP file
+		// Write BMP file
 		const std::size_t pos = filename.find_first_of('.');
-		const std::string outFilename = (pos == std::string::npos) ? (filename + ".bmp") : (filename.substr(0, pos) + ".bmp");
+		const std::string outFilename = (pos == std::string::npos)
+											? (filename + ".bmp")
+											: (filename.substr(0, pos) + ".bmp");
 		writeBMP(header, mcus, outFilename);
 
 		delete[] mcus;
