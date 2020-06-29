@@ -88,72 +88,93 @@ const byte JPG13 = 0xFD;
 const byte COM = 0xFE;
 const byte TEM = 0x01;
 
-struct QuantizationTable {
-  // One dimension array is use because it is more flexible than 2D. I can use
-  // nested for loops or just one loop.
-  uint table[64] = {0};
-  bool set = false;
+struct QuantizationTable
+{
+    // One dimension array is use because it is more flexible than 2D. I can use
+    // nested for loops or just one loop.
+    uint table[64] = {0};
+    bool set = false;
 };
 
-struct HuffmanTable {
-  byte offsets[17] = {0};
-  byte symbols[162] = {0};
-  bool set = false;
+struct HuffmanTable
+{
+    byte offsets[17] = {0};
+    byte symbols[162] = {0};
+    uint codes[162] = {0};
+    bool set = false;
 };
 
-struct ColorComponent {
-  byte horizontalSamplingFactor = 1;
-  byte verticalSamplingFactor = 1;
-  byte quantizationTableID = 0;
-  byte huffmanDCTableID = 0;
-  byte huffmanACTableID = 0;
-  bool used = false;
+struct ColorComponent
+{
+    byte horizontalSamplingFactor = 1;
+    byte verticalSamplingFactor = 1;
+    byte quantizationTableID = 0;
+    byte huffmanDCTableID = 0;
+    byte huffmanACTableID = 0;
+    bool used = false;
 };
 
-struct Header {
-  QuantizationTable quantizationTables[4];
+struct Header
+{
+    QuantizationTable quantizationTables[4];
 
-  HuffmanTable huffmanDCTables[4];
-  HuffmanTable huffmanACTables[4];
+    HuffmanTable huffmanDCTables[4];
+    HuffmanTable huffmanACTables[4];
 
-  byte frameType = 0;
-  uint height = 0, width = 0;
-  byte numComponents;
-  bool zeroBased = false;
+    byte frameType = 0;
+    uint height = 0, width = 0;
+    byte numComponents;
+    bool zeroBased = false;
 
-  byte startOfSelection = 0;
-  byte endOfSelection = 63;
-  byte successiveApproximationHigh = 0;
-  byte successiveApproximationLow = 0;
+    byte startOfSelection = 0;
+    byte endOfSelection = 63;
+    byte successiveApproximationHigh = 0;
+    byte successiveApproximationLow = 0;
 
-  uint restartInterval = 0;
+    uint restartInterval = 0;
 
-  ColorComponent colorComponents[3];
+    ColorComponent colorComponents[3];
 
-  std::vector<byte> huffmanData;
+    std::vector<byte> huffmanData;
 
-  bool valid = true;
+    bool valid = true;
 };
 
-struct MCU {
-  // Union are for representing the YCbCr component but also RGB for the X & Y
-  // coordinate of the image.
-  union {
-    int y[64] = {0};
-    int r[64];
-  };
-  union {
-    int cb[64] = {0};
-    int g[64];
-  };
-  union {
-    int cr[64] = {0};
-    int b[64];
-  };
+struct MCU
+{
+    // Union are for representing the YCbCr component but also RGB for the X & Y
+    // coordinate of the image.
+    union
+    {
+        int y[64] = {0};
+        int r[64];
+    };
+    union
+    {
+        int cb[64] = {0};
+        int g[64];
+    };
+    union
+    {
+        int cr[64] = {0};
+        int b[64];
+    };
+    int *operator[](uint i)
+    {
+        switch (i)
+        {
+        case 0:
+            return y;
+        case 1:
+            return cb;
+        case 2:
+            return cr;
+        default:
+            return nullptr;
+        }
+    }
 };
 
-const uint zigZagMap[] = {0,  1,  8,  16, 9,  2,  3,  10, 17, 24, 32, 25, 18,
-                          11, 4,  5,  12, 19, 26, 33, 40, 48, 41, 34, 27, 20,
-                          13, 6,  7,  14, 21, 28, 35, 42, 49, 56, 57, 50, 43,
-                          36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59, 52, 45,
-                          38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63};
+const uint zigZagMap[] = {0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48,
+                          41, 34, 27, 20, 13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23,
+                          30, 37, 44, 51, 58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63};
