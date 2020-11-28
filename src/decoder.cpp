@@ -810,7 +810,7 @@ bool decodeMCUComponent(BitReader& b,
                         const HuffmanTable& dcTable,
                         const HuffmanTable& acTable)
 {
-    byte length = getNextSymbol(b, dcTable); // Get the DC Value for this MCU Component.
+    byte length = getNextSymbol(b, dcTable).to_ulong(); // Get the DC Value for this MCU Component.
     if (length.to_ulong() == -1)
     {
         std::cout << "Error - Invalid DC value\n";
@@ -828,7 +828,7 @@ bool decodeMCUComponent(BitReader& b,
         std::cout << "Error - Invalid DC value\n";
         return false;
     }
-    if (length != 0 && coeff < (1 << (length.to_ulong() - 1)))
+    if (length.to_ulong() != 0 && coeff < (1 << (length.to_ulong() - 1)))
     {
         coeff -= (1 << length.to_ulong()) - 1;
     }
@@ -839,15 +839,15 @@ bool decodeMCUComponent(BitReader& b,
     uint i = 1;
     while (i < 64)
     {
-        byte symbol = getNextSymbol(b, acTable);
-        if (symbol == (byte)-1)
+        byte symbol = getNextSymbol(b, acTable).to_ulong();
+        if (symbol.to_ulong() == -1)
         {
             std::cout << "Error - Invalid AC value\n";
             return false;
         }
 
         // Symbol 0x00 means fill remainder of compoenent with 0.
-        if (symbol == 0x00)
+        if (symbol.to_ulong() == 0x00)
         {
             for (; i < 64; ++i)
             {
@@ -862,7 +862,7 @@ bool decodeMCUComponent(BitReader& b,
         coeff = 0;
 
         // Symbol 0xF0 means skip 16 0's.
-        if (symbol == 0xF0)
+        if (symbol.to_ulong() == 0xF0)
         {
             numZeroes = 16;
         }
@@ -881,7 +881,7 @@ bool decodeMCUComponent(BitReader& b,
             std::cout << "Error - AC coefficient length greater than 10\n";
             return false;
         }
-        if (coeffLength != 0)
+        if (coeffLength.to_ulong() != 0)
         {
             coeff = b.readBits(coeffLength.to_ulong());
             if (coeff == -1)
